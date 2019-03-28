@@ -1,3 +1,5 @@
+#include <omp.h>
+
 #include <ros/ros.h>
 
 #include <sensor_msgs/Image.h>
@@ -92,6 +94,7 @@ void ObjectDetector3D<t_p>::callback(const sensor_msgs::ImageConstPtr& image, co
 template<typename t_p>
 void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const sensor_msgs::CameraInfo& camera_info, const sensor_msgs::PointCloud2& pc)
 {
+    double start_time = ros::Time::now().toSec();
     pcl::PointCloud<pcl::PointXYZI>::Ptr lidar_cloud(new pcl::PointCloud<pcl::PointXYZI>);
     pcl::fromROSMsg(pc, *lidar_cloud);
 
@@ -123,30 +126,33 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     *colored_cloud = * trans_cloud;
     cv::Mat projection_image = rgb_image.clone();
 
-    for(auto pt=colored_cloud->points.begin();pt!=colored_cloud->points.end();++pt){
-        if((*pt).z<0){
+    int n = colored_cloud->points.size();
+    #pragma omp parallel for
+    for(int i=0;i<n;i++){
+        auto pt = colored_cloud->points.at(i);
+        if(pt.z<0){
             // behind camera
-            (*pt).b = 255;
-            (*pt).g = 255;
-            (*pt).r = 255;
+            pt.b = 255;
+            pt.g = 255;
+            pt.r = 255;
         }else{
-            cv::Point3d pt_cv((*pt).x, (*pt).y, (*pt).z);
+            cv::Point3d pt_cv(pt.x, pt.y, pt.z);
             cv::Point2d uv;
             uv = cam_model.project3dToPixel(pt_cv);
 
             if(uv.x > 0 && uv. x < rgb_image.cols && uv.y > 0 && uv.y < rgb_image.rows){
-                (*pt).b = rgb_image.at<cv::Vec3b>(uv)[0];
-                (*pt).g = rgb_image.at<cv::Vec3b>(uv)[1];
-                (*pt).r = rgb_image.at<cv::Vec3b>(uv)[2];
+                pt.b = rgb_image.at<cv::Vec3b>(uv)[0];
+                pt.g = rgb_image.at<cv::Vec3b>(uv)[1];
+                pt.r = rgb_image.at<cv::Vec3b>(uv)[2];
 
-                double distance = sqrt((*pt).x * (*pt).x + (*pt).y * (*pt).y + (*pt).z * (*pt).z);
+                double distance = sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
                 double r, g, b;
                 get_color(distance, r, g, b);
                 cv::circle(projection_image, uv, 1, cv::Scalar(b, g, r), -1);
             }else{
-                (*pt).b = 255;
-                (*pt).g = 255;
-                (*pt).r = 255;
+                pt.b = 255;
+                pt.g = 255;
+                pt.r = 255;
             }
         }
     }
@@ -165,6 +171,8 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     output_image->header.frame_id = image.header.frame_id;
     output_image->header.stamp = ros::Time::now();
     image_pub.publish(output_image);
+
+    std::cout << ros::Time::now().toSec() - start_time << "[s]" << std::endl;
 }
 
 template<typename t_p>

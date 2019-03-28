@@ -1,0 +1,9 @@
+<launch>
+
+    <include file="$(find velodyne_pointcloud)/launch/32e_points.launch"/>
+
+    <node pkg="image_transport" type="republish" name="republish" args="compressed in:=/camera/color/image_raw raw out:=/camera/color/image_raw"/>
+
+    <node pkg="rosbag" type="play" name="play" args="$(find object_detection_sensor_fusion)/bagfiles/data.bag"/>
+
+</launch>

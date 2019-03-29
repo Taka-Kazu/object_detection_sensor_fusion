@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   pcl_ros
   message_generation
+  darknet_ros_msgs
 )
 
 ## System dependencies are found with CMake's conventions

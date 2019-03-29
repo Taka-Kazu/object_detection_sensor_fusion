@@ -31,14 +31,17 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
+#include <darknet_ros_msgs/BoundingBox.h>
+#include <darknet_ros_msgs/BoundingBoxes.h>
+
 template<typename t_p>
 class ObjectDetector3D
 {
 public:
     ObjectDetector3D(void);
 
-    void callback(const sensor_msgs::ImageConstPtr&, const sensor_msgs::CameraInfoConstPtr&, const sensor_msgs::PointCloud2ConstPtr&);
-    void sensor_fusion(const sensor_msgs::Image&, const sensor_msgs::CameraInfo&, const sensor_msgs::PointCloud2&);
+    void callback(const sensor_msgs::ImageConstPtr&, const sensor_msgs::CameraInfoConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, const darknet_ros_msgs::BoundingBoxesConstPtr&);
+    void sensor_fusion(const sensor_msgs::Image&, const sensor_msgs::CameraInfo&, const sensor_msgs::PointCloud2&, const darknet_ros_msgs::BoundingBoxes&);
     void get_color(double, int&, int&, int&);// dist, r, g, b
     void euclidean_cluster(pcl::PointCloud<t_p>);
 
@@ -51,10 +54,11 @@ private:
 
     ros::NodeHandle nh;
 
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::PointCloud2> sensor_fusion_sync_subs;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::PointCloud2, darknet_ros_msgs::BoundingBoxes> sensor_fusion_sync_subs;
     message_filters::Subscriber<sensor_msgs::Image> image_sub;
     message_filters::Subscriber<sensor_msgs::CameraInfo> camera_info_sub;
     message_filters::Subscriber<sensor_msgs::PointCloud2> pc_sub;
+    message_filters::Subscriber<darknet_ros_msgs::BoundingBoxes> bb_sub;
     message_filters::Synchronizer<sensor_fusion_sync_subs> sensor_fusion_sync;
 
     ros::Publisher image_pub;
@@ -75,11 +79,11 @@ int main(int argc, char** argv)
 template<typename t_p>
 ObjectDetector3D<t_p>::ObjectDetector3D(void)
     : nh("~"),
-      image_sub(nh, "/camera/color/image_raw", 10), camera_info_sub(nh, "/camera/color/camera_info", 10), pc_sub(nh, "/velodyne_points", 10), sensor_fusion_sync(sensor_fusion_sync_subs(10), image_sub, camera_info_sub, pc_sub)
+      image_sub(nh, "/camera/color/image_raw", 10), camera_info_sub(nh, "/camera/color/camera_info", 10), pc_sub(nh, "/velodyne_points", 10), bb_sub(nh, "/darknet_ros/bounding_boxes", 10), sensor_fusion_sync(sensor_fusion_sync_subs(10), image_sub, camera_info_sub, pc_sub, bb_sub)
 {
     image_pub = nh.advertise<sensor_msgs::Image>("/projection", 1);
     pc_pub = nh.advertise<sensor_msgs::PointCloud2>("/colored_cloud", 1);
-    sensor_fusion_sync.registerCallback(boost::bind(&ObjectDetector3D::callback, this, _1, _2, _3));
+    sensor_fusion_sync.registerCallback(boost::bind(&ObjectDetector3D::callback, this, _1, _2, _3, _4));
 
     nh.param("LEAF_SIZE", LEAF_SIZE, 0.05);
     nh.param("TOLERANCE", TOLERANCE, 0.10);
@@ -90,19 +94,19 @@ ObjectDetector3D<t_p>::ObjectDetector3D(void)
 }
 
 template<typename t_p>
-void ObjectDetector3D<t_p>::callback(const sensor_msgs::ImageConstPtr& image, const sensor_msgs::CameraInfoConstPtr& camera_info, const sensor_msgs::PointCloud2ConstPtr& pc)
+void ObjectDetector3D<t_p>::callback(const sensor_msgs::ImageConstPtr& image, const sensor_msgs::CameraInfoConstPtr& camera_info, const sensor_msgs::PointCloud2ConstPtr& pc, const darknet_ros_msgs::BoundingBoxesConstPtr& bbs)
 {
     try{
         listener.waitForTransform(image->header.frame_id, pc->header.frame_id, ros::Time(0), ros::Duration(4.0));
         listener.lookupTransform(image->header.frame_id, pc->header.frame_id, ros::Time(0), transform);
-        sensor_fusion(*image, *camera_info, *pc);
+        sensor_fusion(*image, *camera_info, *pc, *bbs);
     }catch(tf::TransformException ex){
         ROS_ERROR("%s", ex.what());
     }
 }
 
 template<typename t_p>
-void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const sensor_msgs::CameraInfo& camera_info, const sensor_msgs::PointCloud2& pc)
+void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const sensor_msgs::CameraInfo& camera_info, const sensor_msgs::PointCloud2& pc, const darknet_ros_msgs::BoundingBoxes& bbs)
 {
     double start_time = ros::Time::now().toSec();
     pcl::PointCloud<pcl::PointXYZI>::Ptr lidar_cloud(new pcl::PointCloud<pcl::PointXYZI>);

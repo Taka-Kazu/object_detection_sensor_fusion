@@ -39,7 +39,7 @@ public:
 
     void callback(const sensor_msgs::ImageConstPtr&, const sensor_msgs::CameraInfoConstPtr&, const sensor_msgs::PointCloud2ConstPtr&);
     void sensor_fusion(const sensor_msgs::Image&, const sensor_msgs::CameraInfo&, const sensor_msgs::PointCloud2&);
-    void get_color(double, double&, double&, double&);// dist, r, g, b
+    void get_color(double, int&, int&, int&);// dist, r, g, b
     void euclidean_cluster(pcl::PointCloud<t_p>);
 
 private:
@@ -156,7 +156,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
                 pt.r = rgb_image.at<cv::Vec3b>(uv)[2];
 
                 double distance = sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
-                double r, g, b;
+                int r, g, b;
                 get_color(distance, r, g, b);
                 cv::circle(projection_image, uv, 1, cv::Scalar(b, g, r), -1);
             }else{
@@ -186,7 +186,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
 }
 
 template<typename t_p>
-void ObjectDetector3D<t_p>::get_color(double d, double &r, double &g, double &b)
+void ObjectDetector3D<t_p>::get_color(double d, int &r, int &g, int &b)
 {
     r = 255;
     g = 255;

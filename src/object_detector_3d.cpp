@@ -139,7 +139,8 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     int n = colored_cloud->points.size();
     #pragma omp parallel for
     for(int i=0;i<n;i++){
-        auto pt = colored_cloud->points.at(i);
+        //auto pt = colored_cloud->points.at(i);
+        t_p& pt = colored_cloud->points.at(i);
         if(pt.z<0){
             // behind camera
             pt.b = 255;

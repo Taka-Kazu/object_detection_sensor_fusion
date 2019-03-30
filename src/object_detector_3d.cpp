@@ -45,6 +45,8 @@ public:
     void get_color(double, int&, int&, int&);// dist, r, g, b
     void euclidean_cluster(pcl::PointCloud<t_p>);
     int get_correspond_bb_index(cv::Point2d&, const darknet_ros_msgs::BoundingBoxes&);
+    void get_color_bb(std::string, int&, int&, int&);
+    double get_color_ratio(int, int, int);
 
 private:
     static constexpr double MAX_DISTANCE = 20.0;
@@ -52,8 +54,11 @@ private:
     double TOLERANCE;
     int MIN_CLUSTER_SIZE;
     int MAX_CLUSTER_SIZE;
+    std::vector<std::string> CLASS_LABELS;
+    int NUM_CLASS_LABELS;
 
     ros::NodeHandle nh;
+    ros::NodeHandle private_nh;
 
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::CameraInfo, sensor_msgs::PointCloud2, darknet_ros_msgs::BoundingBoxes> sensor_fusion_sync_subs;
     message_filters::Subscriber<sensor_msgs::Image> image_sub;
@@ -79,19 +84,28 @@ int main(int argc, char** argv)
 
 template<typename t_p>
 ObjectDetector3D<t_p>::ObjectDetector3D(void)
-    : nh("~"),
+    : private_nh("~"),
       image_sub(nh, "/camera/color/image_raw", 10), camera_info_sub(nh, "/camera/color/camera_info", 10), pc_sub(nh, "/velodyne_points", 10), bb_sub(nh, "/darknet_ros/bounding_boxes", 10), sensor_fusion_sync(sensor_fusion_sync_subs(10), image_sub, camera_info_sub, pc_sub, bb_sub)
 {
     image_pub = nh.advertise<sensor_msgs::Image>("/projection", 1);
     pc_pub = nh.advertise<sensor_msgs::PointCloud2>("/colored_cloud", 1);
     sensor_fusion_sync.registerCallback(boost::bind(&ObjectDetector3D::callback, this, _1, _2, _3, _4));
 
-    nh.param("LEAF_SIZE", LEAF_SIZE, 0.05);
-    nh.param("TOLERANCE", TOLERANCE, 0.10);
-    nh.param("MIN_CLUSTER_SIZE", MIN_CLUSTER_SIZE, 20);
-    nh.param("MAX_CLUSTER_SIZE", MAX_CLUSTER_SIZE, 900);
+    private_nh.param("LEAF_SIZE", LEAF_SIZE, 0.05);
+    private_nh.param("TOLERANCE", TOLERANCE, 0.10);
+    private_nh.param("MIN_CLUSTER_SIZE", MIN_CLUSTER_SIZE, 20);
+    private_nh.param("MAX_CLUSTER_SIZE", MAX_CLUSTER_SIZE, 900);
+    // for coloring
+    nh.param("/darknet_ros/yolo_model/detection_classes/names", CLASS_LABELS, std::vector<std::string>(0));
+    NUM_CLASS_LABELS = CLASS_LABELS.size();
 
     std::cout << "=== object_detector_3d ===" << std::endl;
+    std::cout << "params: " << std::endl;
+    std::cout << "LEAF_SIZE: " << LEAF_SIZE << std::endl;
+    std::cout << "TOLERANCE: " << TOLERANCE << std::endl;
+    std::cout << "MIN_CLUSTER_SIZE: " << MIN_CLUSTER_SIZE << std::endl;
+    std::cout << "MAX_CLUSTER_SIZE: " << MAX_CLUSTER_SIZE << std::endl;
+    std::cout << "NUM_CLASS_LABELS: " << NUM_CLASS_LABELS << std::endl;
 }
 
 template<typename t_p>
@@ -287,4 +301,28 @@ int ObjectDetector3D<t_p>::get_correspond_bb_index(cv::Point2d& uv, const darkne
     }
     // return -1 if the point is not in any bounding box
     return -1;
+}
+
+template<typename t_p>
+void ObjectDetector3D<t_p>::get_color_bb(std::string label, int& r, int& g, int& b)
+{
+    auto it = std::find(CLASS_LABELS.begin(), CLASS_LABELS.end(), label);
+    int index = std::distance(CLASS_LABELS.begin(), it);
+    int offset = index * 123457 % NUM_CLASS_LABELS;
+    r = 255 * get_color_ratio(2, offset, NUM_CLASS_LABELS);
+    g = 255 * get_color_ratio(1, offset, NUM_CLASS_LABELS);
+    b = 255 * get_color_ratio(0, offset, NUM_CLASS_LABELS);
+}
+
+template<typename t_p>
+double ObjectDetector3D<t_p>::get_color_ratio(int color_num, int value, int max)
+{
+    // color_num -> r:2 g:1 b:0
+    double colors[6][3] = {{1, 0, 1}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}, {1, 1, 0}, {1, 0, 0}};
+    double ratio = ((double)value / max) * 5;
+    int i = floor(ratio);
+    int j = ceil(ratio);
+    ratio -= i;
+    ratio = (1-ratio) * colors[i][color_num] + ratio * colors[j][color_num];
+    return ratio;
 }

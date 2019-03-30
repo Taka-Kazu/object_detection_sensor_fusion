@@ -47,6 +47,7 @@ public:
     int get_correspond_bb_index(cv::Point2d&, const darknet_ros_msgs::BoundingBoxes&);
     void get_color_bb(std::string, int&, int&, int&);
     double get_color_ratio(int, int, int);
+    void coloring_pointcloud(pcl::PointCloud<t_p>&, int, int, int);
 
 private:
     static constexpr double MAX_DISTANCE = 20.0;
@@ -69,6 +70,7 @@ private:
 
     ros::Publisher image_pub;
     ros::Publisher pc_pub;
+    ros::Publisher semantic_cloud_pub;
 
     tf::TransformListener listener;
     tf::StampedTransform transform;
@@ -89,6 +91,7 @@ ObjectDetector3D<t_p>::ObjectDetector3D(void)
 {
     image_pub = nh.advertise<sensor_msgs::Image>("/projection", 1);
     pc_pub = nh.advertise<sensor_msgs::PointCloud2>("/colored_cloud", 1);
+    semantic_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/cloud/colored/semantic", 1);
     sensor_fusion_sync.registerCallback(boost::bind(&ObjectDetector3D::callback, this, _1, _2, _3, _4));
 
     private_nh.param("LEAF_SIZE", LEAF_SIZE, 0.05);
@@ -199,6 +202,20 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
             }
         }
     }
+
+    for(int i=0;i<n_bbs;i++){
+        int r, g, b;
+        get_color_bb(bbs.bounding_boxes[i].Class, r, g, b);
+        coloring_pointcloud(*(bb_clouds[i]), r, g, b);
+    }
+    typename pcl::PointCloud<t_p>::Ptr semantic_cloud(new pcl::PointCloud<t_p>);
+    for(auto pcd : bb_clouds){
+        *semantic_cloud += *pcd;
+    }
+    pcl_ros::transformPointCloud(*semantic_cloud, *semantic_cloud, transform.inverse());
+    sensor_msgs::PointCloud2 output_semantic_cloud;
+    pcl::toROSMsg(*semantic_cloud, output_semantic_cloud);
+    semantic_cloud_pub.publish(output_semantic_cloud);
 
     typename pcl::PointCloud<t_p>::Ptr output_cloud(new pcl::PointCloud<t_p>);
     pcl_ros::transformPointCloud(*colored_cloud, *output_cloud, transform.inverse());
@@ -324,4 +341,14 @@ double ObjectDetector3D<t_p>::get_color_ratio(int color_num, int value, int max)
     ratio -= i;
     ratio = (1-ratio) * colors[i][color_num] + ratio * colors[j][color_num];
     return ratio;
+}
+
+template<typename t_p>
+void ObjectDetector3D<t_p>::coloring_pointcloud(pcl::PointCloud<t_p>& cloud, int r, int g, int b)
+{
+    for(auto it=cloud.points.begin();it!=cloud.points.end();++it){
+        it->r = r;
+        it->g = g;
+        it->b = b;
+    }
 }

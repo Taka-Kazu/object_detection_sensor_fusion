@@ -44,6 +44,7 @@ public:
     void sensor_fusion(const sensor_msgs::Image&, const sensor_msgs::CameraInfo&, const sensor_msgs::PointCloud2&, const darknet_ros_msgs::BoundingBoxes&);
     void get_color(double, int&, int&, int&);// dist, r, g, b
     void euclidean_cluster(pcl::PointCloud<t_p>);
+    int get_correspond_bb_index(cv::Point2d&, const darknet_ros_msgs::BoundingBoxes&);
 
 private:
     static constexpr double MAX_DISTANCE = 20.0;
@@ -140,6 +141,13 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     *colored_cloud = *trans_cloud;
     cv::Mat projection_image = rgb_image.clone();
 
+    int n_bbs = bbs.bounding_boxes.size();
+    std::vector<typename pcl::PointCloud<t_p>::Ptr> bb_clouds;
+    for(size_t i=0;i<n_bbs;i++){
+        typename pcl::PointCloud<t_p>::Ptr _pc(new pcl::PointCloud<t_p>);
+        bb_clouds.push_back(_pc);
+    }
+
     int n = colored_cloud->points.size();
     #pragma omp parallel for
     for(int i=0;i<n;i++){
@@ -164,6 +172,12 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
                 int r, g, b;
                 get_color(distance, r, g, b);
                 cv::circle(projection_image, uv, 1, cv::Scalar(b, g, r), -1);
+
+                // in bounding box
+                int bb_index = get_correspond_bb_index(uv, bbs);
+                if(bb_index >= 0){
+                    bb_clouds[bb_index]->points.push_back(pt);
+                }
             }else{
                 pt.b = 255;
                 pt.g = 255;
@@ -259,4 +273,18 @@ void ObjectDetector3D<t_p>::euclidean_cluster(pcl::PointCloud<t_p> pc)
     for(size_t i=0;i<n_points;++i){
         cloud_filtered->points[i].z = original_z[i];
     }
+}
+
+template<typename t_p>
+int ObjectDetector3D<t_p>::get_correspond_bb_index(cv::Point2d& uv, const darknet_ros_msgs::BoundingBoxes& bbs)
+{
+    int counter = 0;
+    for(auto bb : bbs.bounding_boxes){
+        if(bb.xmin <= uv.x && uv.x <= bb.xmax && bb.ymin <= uv.y && uv.y <= bb.ymax){
+           return counter;
+        }
+        counter++;
+    }
+    // return -1 if the point is not in any bounding box
+    return -1;
 }

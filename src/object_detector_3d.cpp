@@ -251,12 +251,11 @@ void ObjectDetector3D<t_p>::get_color(double d, int &r, int &g, int &b)
 template<typename t_p>
 void ObjectDetector3D<t_p>::euclidean_cluster(pcl::PointCloud<t_p> pc)
 {
-    //typename pcl::PointCloud<t_p>::Ptr cloud(new pcl::PointCloud<t_p>);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    typename pcl::PointCloud<t_p>::Ptr cloud(new pcl::PointCloud<t_p>);
     pcl::copyPointCloud(pc, *cloud);
 
-    pcl::VoxelGrid<pcl::PointXYZ> vg;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+    typename pcl::VoxelGrid<t_p> vg;
+    typename pcl::PointCloud<t_p>::Ptr cloud_filtered(new pcl::PointCloud<t_p>);
     vg.setInputCloud(cloud);
     vg.setLeafSize(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE);
     vg.filter(*cloud_filtered);
@@ -270,11 +269,11 @@ void ObjectDetector3D<t_p>::euclidean_cluster(pcl::PointCloud<t_p> pc)
         cloud_filtered->points[i].z = 0;
     }
 
-    typename pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+    typename pcl::search::KdTree<t_p>::Ptr tree(new pcl::search::KdTree<t_p>);
     tree->setInputCloud(cloud_filtered);
 
     std::vector<pcl::PointIndices> cluster_indices;
-    pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+    typename pcl::EuclideanClusterExtraction<t_p> ec;
     ec.setClusterTolerance(TOLERANCE);
     ec.setMinClusterSize(MIN_CLUSTER_SIZE);
     ec.setMaxClusterSize(MAX_CLUSTER_SIZE);

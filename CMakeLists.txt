@@ -41,6 +41,7 @@ endif()
 
 find_package(Eigen3 REQUIRED COMPONENTS system)
 include_directories(${Eigen_INCLUDE_DIRS})
+message(STATUS "Eigen: " ${Eigen_INCLUDE_DIRS})
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed

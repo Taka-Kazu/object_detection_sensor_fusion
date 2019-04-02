@@ -165,11 +165,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
         bb_clouds.push_back(_pc);
     }
 
-    int n = colored_cloud->points.size();
-    #pragma omp parallel for
-    for(int i=0;i<n;i++){
-        //auto pt = colored_cloud->points.at(i);
-        t_p& pt = colored_cloud->points.at(i);
+    for(auto& pt : colored_cloud->points){
         if(pt.z<0){
             // behind camera
             pt.b = 255;
@@ -215,6 +211,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     pcl_ros::transformPointCloud(*semantic_cloud, *semantic_cloud, transform.inverse());
     sensor_msgs::PointCloud2 output_semantic_cloud;
     pcl::toROSMsg(*semantic_cloud, output_semantic_cloud);
+    output_semantic_cloud.header = pc.header;
     semantic_cloud_pub.publish(output_semantic_cloud);
 
     typename pcl::PointCloud<t_p>::Ptr output_cloud(new pcl::PointCloud<t_p>);

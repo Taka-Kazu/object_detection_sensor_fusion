@@ -9,8 +9,8 @@
         <remap from="/cloud/colored/semantic" to="/cloud/colored/semantic"/>
         <remap from="/darknet_ros/bounding_boxes" to="/darknet_ros/bounding_boxes"/>
         <param name="LEAF_SIZE" value="0.05"/>
-        <param name="TOLELANCE" value="0.10"/>
-        <param name="MIN_CLUSTER_SIZE" value="20"/>
+        <param name="TOLELANCE" value="0.20"/>
+        <param name="MIN_CLUSTER_SIZE" value="2"/>
         <param name="MAX_CLUSTER_SIZE" value="900"/>
     </node>
 </launch>

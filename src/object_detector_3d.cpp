@@ -43,7 +43,7 @@ public:
     void callback(const sensor_msgs::ImageConstPtr&, const sensor_msgs::CameraInfoConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, const darknet_ros_msgs::BoundingBoxesConstPtr&);
     void sensor_fusion(const sensor_msgs::Image&, const sensor_msgs::CameraInfo&, const sensor_msgs::PointCloud2&, const darknet_ros_msgs::BoundingBoxes&);
     void get_color(double, int&, int&, int&);// dist, r, g, b
-    void euclidean_cluster(pcl::PointCloud<t_p>);
+    void get_euclidean_cluster(pcl::PointCloud<t_p>&, pcl::PointCloud<t_p>&);// input, output
     int get_correspond_bb_index(cv::Point2d&, const darknet_ros_msgs::BoundingBoxes&);
     void get_color_bb(std::string, int&, int&, int&);
     double get_color_ratio(int, int, int);
@@ -205,9 +205,15 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
         coloring_pointcloud(*(bb_clouds[i]), r, g, b);
     }
     typename pcl::PointCloud<t_p>::Ptr semantic_cloud(new pcl::PointCloud<t_p>);
-    for(auto pcd : bb_clouds){
-        *semantic_cloud += *pcd;
+    int index = 0;
+    for(auto& pcd : bb_clouds){
+        std::cout << "label: " << bbs.bounding_boxes[index].Class << std::endl;
+        typename pcl::PointCloud<t_p>::Ptr cluster(new pcl::PointCloud<t_p>);
+        get_euclidean_cluster(*pcd, *cluster);
+        *semantic_cloud += *cluster;
+        index++;
     }
+
     pcl_ros::transformPointCloud(*semantic_cloud, *semantic_cloud, transform.inverse());
     sensor_msgs::PointCloud2 output_semantic_cloud;
     pcl::toROSMsg(*semantic_cloud, output_semantic_cloud);
@@ -263,21 +269,19 @@ void ObjectDetector3D<t_p>::get_color(double d, int &r, int &g, int &b)
 }
 
 template<typename t_p>
-void ObjectDetector3D<t_p>::euclidean_cluster(pcl::PointCloud<t_p> pc)
+void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl::PointCloud<t_p>& output_pc)
 {
-    typename pcl::PointCloud<t_p>::Ptr cloud(new pcl::PointCloud<t_p>);
-    pcl::copyPointCloud(pc, *cloud);
+    typename pcl::PointCloud<t_p>::Ptr cloud_filtered(new pcl::PointCloud<t_p>);
+    pcl::copyPointCloud(pc, *cloud_filtered);
 
     typename pcl::VoxelGrid<t_p> vg;
-    typename pcl::PointCloud<t_p>::Ptr cloud_filtered(new pcl::PointCloud<t_p>);
-    vg.setInputCloud(cloud);
+    vg.setInputCloud(cloud_filtered);
     vg.setLeafSize(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE);
     vg.filter(*cloud_filtered);
 
     // z to 0
     size_t n_points = cloud_filtered->points.size();
     std::vector<double> original_z(n_points);
-    #pragma omp parallel for
     for(size_t i=0;i<n_points;++i){
         original_z[i] = cloud_filtered->points[i].z;
         cloud_filtered->points[i].z = 0;
@@ -296,10 +300,31 @@ void ObjectDetector3D<t_p>::euclidean_cluster(pcl::PointCloud<t_p> pc)
     ec.extract(cluster_indices);
 
     // restore to original z
-    #pragma omp parallel for
     for(size_t i=0;i<n_points;++i){
         cloud_filtered->points[i].z = original_z[i];
     }
+    if(!cluster_indices.size() > 0){
+        std::cout << "!!! clustering error !!!" << std::endl;
+        return;
+    }
+
+    int max_cluster_size = 0;
+    int max_cluster_index = -1;
+    int index = 0;
+    for(auto indices : cluster_indices){
+        typename pcl::PointCloud<t_p>::Ptr cluster(new pcl::PointCloud<t_p>);
+        for(auto it : indices.indices){
+            cluster->points.push_back(cloud_filtered->points.at(it));
+        }
+        int cluster_size = cluster->points.size();
+        if(cluster_size > max_cluster_size){
+            max_cluster_index = index;
+            max_cluster_size = cluster_size;
+            output_pc = *cluster;
+        }
+        index++;
+    }
+    std::cout << "cluster size: " << output_pc.points.size() << std::endl;
 }
 
 template<typename t_p>

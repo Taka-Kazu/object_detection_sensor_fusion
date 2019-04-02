@@ -1,8 +1,8 @@
 <launch>
 
     <node pkg="object_detection_sensor_fusion" type="object_detector_3d" name="object_detector_3d">
-        <remap from="/camera/color/image_raw" to="/camera/color/image_raw"/>
-        <remap from="/camera/color/camera_info" to="/camera/color/camera_info"/>
+        <remap from="/camera/color/image_raw" to="/camera0/color/image_raw"/>
+        <remap from="/camera/color/camera_info" to="/camera0/color/camera_info"/>
         <remap from="/velodyne_points" to="/cloud/lcl"/>
         <remap from="/projection" to="/projection"/>
         <remap from="/colored_cloud" to="/colored_cloud"/>

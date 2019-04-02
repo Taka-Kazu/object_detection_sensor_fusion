@@ -133,7 +133,6 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     typename pcl::PointCloud<t_p>::Ptr cloud(new pcl::PointCloud<t_p>);
     pcl::copyPointCloud(*lidar_cloud, *cloud);
 
-    tf::Transform tf;
     typename pcl::PointCloud<t_p>::Ptr trans_cloud(new pcl::PointCloud<t_p>);
     pcl_ros::transformPointCloud(*cloud, *trans_cloud, transform);
 

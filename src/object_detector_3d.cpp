@@ -34,6 +34,8 @@
 #include <darknet_ros_msgs/BoundingBox.h>
 #include <darknet_ros_msgs/BoundingBoxes.h>
 
+#include "bounding_box_lib/bounding_box.h"
+
 template<typename t_p>
 class ObjectDetector3D
 {

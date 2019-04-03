@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   message_generation
   darknet_ros_msgs
+  bounding_box_lib
 )
 
 ## System dependencies are found with CMake's conventions
@@ -229,4 +230,5 @@ target_link_libraries(object_detector_3d
     ${catkin_LIBRARIES}
     ${PCL_LIBRARIES}
     ${OpenCV_LIBRARIES}
+    bounding_box_lib
 )

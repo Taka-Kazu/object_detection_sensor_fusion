@@ -312,21 +312,28 @@ void ObjectDetector3D<t_p>::get_color(double d, int &r, int &g, int &b)
 template<typename t_p>
 void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl::PointCloud<t_p>& output_pc)
 {
+    if(pc.points.empty()){
+        return;
+    }
     typename pcl::PointCloud<t_p>::Ptr cloud_filtered(new pcl::PointCloud<t_p>);
     pcl::copyPointCloud(pc, *cloud_filtered);
 
+    /*
     typename pcl::VoxelGrid<t_p> vg;
     vg.setInputCloud(cloud_filtered);
     vg.setLeafSize(LEAF_SIZE, LEAF_SIZE, LEAF_SIZE);
     vg.filter(*cloud_filtered);
+    */
 
     // z to 0
+    /*
     size_t n_points = cloud_filtered->points.size();
     std::vector<double> original_z(n_points);
     for(size_t i=0;i<n_points;++i){
         original_z[i] = cloud_filtered->points[i].z;
         cloud_filtered->points[i].z = 0;
     }
+    */
 
     typename pcl::search::KdTree<t_p>::Ptr tree(new pcl::search::KdTree<t_p>);
     tree->setInputCloud(cloud_filtered);
@@ -341,12 +348,14 @@ void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl:
     ec.extract(cluster_indices);
 
     // restore to original z
+    /*
     for(size_t i=0;i<n_points;++i){
         cloud_filtered->points[i].z = original_z[i];
     }
+    */
     if(!cluster_indices.size() > 0){
         std::cout << "!!! clustering error !!!" << std::endl;
-        return;
+        //return;
     }
 
     int max_cluster_size = 0;

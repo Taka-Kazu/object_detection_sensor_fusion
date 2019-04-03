@@ -235,6 +235,23 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     output_image->header.stamp = ros::Time::now();
     image_pub.publish(output_image);
 
+    // edge detection
+    cv::Mat edge_image;
+    cv::cvtColor(rgb_image, edge_image, CV_RGB2GRAY);
+    cv::GaussianBlur(edge_image, edge_image, cv::Size(5, 5), 0);
+    cv::Canny(edge_image, edge_image, 100, 200, 3);
+    /*
+    std::vector<cv::Vec4i> lines;
+    cv::HoughLinesP(edge_image, lines, 1, M_PI / 180, 20, 2, 10);
+    for(int i=0;i<lines.size();i++){
+        cv::Vec4i l = lines[i];
+        cv::line(rgb_image, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0, 255, 0), 3, CV_AA);
+    }
+    */
+    cv::namedWindow("edge");
+    cv::imshow("edge", edge_image);
+    cv::waitKey(1);
+
     std::cout << ros::Time::now().toSec() - start_time << "[s]" << std::endl;
 }
 

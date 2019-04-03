@@ -73,6 +73,7 @@ private:
     ros::Publisher image_pub;
     ros::Publisher pc_pub;
     ros::Publisher semantic_cloud_pub;
+    ros::Publisher projection_semantic_image_pub;
 
     tf::TransformListener listener;
     tf::StampedTransform transform;
@@ -94,6 +95,7 @@ ObjectDetector3D<t_p>::ObjectDetector3D(void)
     image_pub = nh.advertise<sensor_msgs::Image>("/projection", 1);
     pc_pub = nh.advertise<sensor_msgs::PointCloud2>("/colored_cloud", 1);
     semantic_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/cloud/colored/semantic", 1);
+    projection_semantic_image_pub = nh.advertise<sensor_msgs::Image>("/projection/semantic", 1);
     sensor_fusion_sync.registerCallback(boost::bind(&ObjectDetector3D::callback, this, _1, _2, _3, _4));
 
     private_nh.param("LEAF_SIZE", LEAF_SIZE, 0.05);
@@ -212,28 +214,50 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
         *semantic_cloud += *cluster;
     }
 
-    pcl_ros::transformPointCloud(*semantic_cloud, *semantic_cloud, transform.inverse());
+    typename pcl::PointCloud<t_p>::Ptr output_sc(new pcl::PointCloud<t_p>);
+    pcl::copyPointCloud(*semantic_cloud, *output_sc);
+    pcl_ros::transformPointCloud(*output_sc, *output_sc, transform.inverse());
     sensor_msgs::PointCloud2 output_semantic_cloud;
-    pcl::toROSMsg(*semantic_cloud, output_semantic_cloud);
+    pcl::toROSMsg(*output_sc, output_semantic_cloud);
     output_semantic_cloud.header = pc.header;
     semantic_cloud_pub.publish(output_semantic_cloud);
 
     // colored cloud
     typename pcl::PointCloud<t_p>::Ptr output_cloud(new pcl::PointCloud<t_p>);
     pcl_ros::transformPointCloud(*colored_cloud, *output_cloud, transform.inverse());
-
     sensor_msgs::PointCloud2 output_pc;
     pcl::toROSMsg(*output_cloud, output_pc);
     output_pc.header.frame_id = pc.header.frame_id;
     output_pc.header.stamp = ros::Time::now();
     pc_pub.publish(output_pc);
 
-    // projection image
+    // projection/depth image
     sensor_msgs::ImagePtr output_image;
     output_image = cv_bridge::CvImage(std_msgs::Header(), "bgr8", projection_image).toImageMsg();
     output_image->header.frame_id = image.header.frame_id;
     output_image->header.stamp = ros::Time::now();
     image_pub.publish(output_image);
+
+    // projection/semantic image
+    cv::Mat projection_semantic_image;
+    projection_image.copyTo(projection_semantic_image);
+    for(int i=0;i<n_bbs;i++){
+        auto bb = bbs.bounding_boxes[i];
+        int r, g, b;
+        get_color_bb(bb.Class, r, g, b);
+        cv::rectangle(projection_semantic_image, cv::Point(bb.xmin, bb.ymin), cv::Point(bb.xmax, bb.ymax), cv::Scalar(b, g, r), 3);
+    }
+    for(auto& pt : semantic_cloud->points){
+        cv::Point3d pt_cv(pt.x, pt.y, pt.z);
+        cv::Point2d uv;
+        uv = cam_model.project3dToPixel(pt_cv);
+        cv::circle(projection_semantic_image, uv, 3, cv::Scalar(pt.b, pt.g, pt.r), -1);
+    }
+    sensor_msgs::ImagePtr output_psi;
+    output_psi = cv_bridge::CvImage(std_msgs::Header(), "bgr8", projection_semantic_image).toImageMsg();
+    output_psi->header.frame_id = image.header.frame_id;
+    output_psi->header.stamp = ros::Time::now();
+    projection_semantic_image_pub.publish(output_psi);
 
     // edge detection
     cv::Mat edge_image;

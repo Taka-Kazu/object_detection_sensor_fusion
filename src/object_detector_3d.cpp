@@ -200,19 +200,16 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
         }
     }
 
+    // semantic cloud
+    typename pcl::PointCloud<t_p>::Ptr semantic_cloud(new pcl::PointCloud<t_p>);
     for(int i=0;i<n_bbs;i++){
+        std::cout << "label: " << bbs.bounding_boxes[i].Class << std::endl;
         int r, g, b;
         get_color_bb(bbs.bounding_boxes[i].Class, r, g, b);
         coloring_pointcloud(*(bb_clouds[i]), r, g, b);
-    }
-    typename pcl::PointCloud<t_p>::Ptr semantic_cloud(new pcl::PointCloud<t_p>);
-    int index = 0;
-    for(auto& pcd : bb_clouds){
-        std::cout << "label: " << bbs.bounding_boxes[index].Class << std::endl;
         typename pcl::PointCloud<t_p>::Ptr cluster(new pcl::PointCloud<t_p>);
-        get_euclidean_cluster(*pcd, *cluster);
+        get_euclidean_cluster(*(bb_clouds[i]), *cluster);
         *semantic_cloud += *cluster;
-        index++;
     }
 
     pcl_ros::transformPointCloud(*semantic_cloud, *semantic_cloud, transform.inverse());
@@ -221,6 +218,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     output_semantic_cloud.header = pc.header;
     semantic_cloud_pub.publish(output_semantic_cloud);
 
+    // colored cloud
     typename pcl::PointCloud<t_p>::Ptr output_cloud(new pcl::PointCloud<t_p>);
     pcl_ros::transformPointCloud(*colored_cloud, *output_cloud, transform.inverse());
 
@@ -230,6 +228,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     output_pc.header.stamp = ros::Time::now();
     pc_pub.publish(output_pc);
 
+    // projection image
     sensor_msgs::ImagePtr output_image;
     output_image = cv_bridge::CvImage(std_msgs::Header(), "bgr8", projection_image).toImageMsg();
     output_image->header.frame_id = image.header.frame_id;

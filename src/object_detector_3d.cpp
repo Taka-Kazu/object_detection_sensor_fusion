@@ -45,11 +45,11 @@ public:
     void callback(const sensor_msgs::ImageConstPtr&, const sensor_msgs::CameraInfoConstPtr&, const sensor_msgs::PointCloud2ConstPtr&, const darknet_ros_msgs::BoundingBoxesConstPtr&);
     void sensor_fusion(const sensor_msgs::Image&, const sensor_msgs::CameraInfo&, const sensor_msgs::PointCloud2&, const darknet_ros_msgs::BoundingBoxes&);
     void get_color(double, int&, int&, int&);// dist, r, g, b
-    void get_euclidean_cluster(pcl::PointCloud<t_p>&, pcl::PointCloud<t_p>&);// input, output
+    void get_euclidean_cluster(typename pcl::PointCloud<t_p>::Ptr&, pcl::PointCloud<t_p>&);// input, output
     int get_correspond_bb_index(cv::Point2d&, const darknet_ros_msgs::BoundingBoxes&);
     void get_color_bb(std::string, int&, int&, int&);
     double get_color_ratio(int, int, int);
-    void coloring_pointcloud(pcl::PointCloud<t_p>&, int, int, int);
+    void coloring_pointcloud(typename pcl::PointCloud<t_p>::Ptr&, int, int, int);
 
 private:
     static constexpr double MAX_DISTANCE = 20.0;
@@ -208,9 +208,9 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
         std::cout << "label: " << bbs.bounding_boxes[i].Class << std::endl;
         int r, g, b;
         get_color_bb(bbs.bounding_boxes[i].Class, r, g, b);
-        coloring_pointcloud(*(bb_clouds[i]), r, g, b);
+        coloring_pointcloud(bb_clouds[i], r, g, b);
         typename pcl::PointCloud<t_p>::Ptr cluster(new pcl::PointCloud<t_p>);
-        get_euclidean_cluster(*(bb_clouds[i]), *cluster);
+        get_euclidean_cluster(bb_clouds[i], *cluster);
         *semantic_cloud += *cluster;
     }
 
@@ -310,21 +310,21 @@ void ObjectDetector3D<t_p>::get_color(double d, int &r, int &g, int &b)
 }
 
 template<typename t_p>
-void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl::PointCloud<t_p>& output_pc)
+void ObjectDetector3D<t_p>::get_euclidean_cluster(typename pcl::PointCloud<t_p>::Ptr& pc, pcl::PointCloud<t_p>& output_pc)
 {
     //std::cout << "original points size: " << pc.points.size() << std::endl;
-    if(pc.points.empty()){
+    if(pc->points.empty()){
         return;
     }
 
     // all input points have same color and intensity
     int r, g, b;
-    r = pc.points.begin()->r;
-    g = pc.points.begin()->g;
-    b = pc.points.begin()->b;
+    r = pc->points.begin()->r;
+    g = pc->points.begin()->g;
+    b = pc->points.begin()->b;
 
     typename pcl::PointCloud<t_p>::Ptr cloud_filtered(new pcl::PointCloud<t_p>);
-    pcl::copyPointCloud(pc, *cloud_filtered);
+    pcl::copyPointCloud(*pc, *cloud_filtered);
 
     /*
     typename pcl::VoxelGrid<t_p> vg;
@@ -424,11 +424,11 @@ double ObjectDetector3D<t_p>::get_color_ratio(int color_num, int value, int max)
 }
 
 template<typename t_p>
-void ObjectDetector3D<t_p>::coloring_pointcloud(pcl::PointCloud<t_p>& cloud, int r, int g, int b)
+void ObjectDetector3D<t_p>::coloring_pointcloud(typename pcl::PointCloud<t_p>::Ptr& cloud, int r, int g, int b)
 {
-    for(auto it=cloud.points.begin();it!=cloud.points.end();++it){
-        it->r = r;
-        it->g = g;
-        it->b = b;
+    for(auto& pt : cloud->points){
+        pt.r = r;
+        pt.g = g;
+        pt.b = b;
     }
 }

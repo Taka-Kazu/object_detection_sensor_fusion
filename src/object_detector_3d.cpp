@@ -323,7 +323,7 @@ void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl:
     g = pc.points.begin()->g;
     b = pc.points.begin()->b;
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+    typename pcl::PointCloud<t_p>::Ptr cloud_filtered(new pcl::PointCloud<t_p>);
     pcl::copyPointCloud(pc, *cloud_filtered);
 
     /*
@@ -343,11 +343,11 @@ void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl:
     }
     */
 
-    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+    typename pcl::search::KdTree<t_p>::Ptr tree(new pcl::search::KdTree<t_p>);
     tree->setInputCloud(cloud_filtered);
 
     std::vector<pcl::PointIndices> cluster_indices;
-    pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+    typename pcl::EuclideanClusterExtraction<t_p> ec;
     ec.setClusterTolerance(TOLERANCE);
     ec.setMinClusterSize(MIN_CLUSTER_SIZE);
     ec.setMaxClusterSize(MAX_CLUSTER_SIZE);
@@ -365,12 +365,11 @@ void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl:
         std::cout << "!!! clustering error !!!" << std::endl;
         //return;
     }
-    pcl::PointCloud<pcl::PointXYZ>::Ptr _output_pc(new pcl::PointCloud<pcl::PointXYZ>);
     int max_cluster_size = 0;
     int max_cluster_index = -1;
     int index = 0;
     for(auto indices : cluster_indices){
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZ>);
+        typename pcl::PointCloud<t_p>::Ptr cluster(new pcl::PointCloud<t_p>);
         for(auto it : indices.indices){
             cluster->points.push_back(cloud_filtered->points.at(it));
         }
@@ -379,17 +378,10 @@ void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl:
         if(cluster_size > max_cluster_size){
             max_cluster_index = index;
             max_cluster_size = cluster_size;
-            *_output_pc = *cluster;
+            output_pc = *cluster;
         }
         index++;
     }
-    pcl::copyPointCloud(*_output_pc, output_pc);
-    for(auto& pt : output_pc.points){
-        pt.r = r;
-        pt.g = g;
-        pt.b = b;
-    }
-
     std::cout << "final cluster size: " << output_pc.points.size() << std::endl;
 }
 

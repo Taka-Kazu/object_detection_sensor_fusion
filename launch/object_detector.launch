@@ -8,6 +8,8 @@
         <remap from="/colored_cloud" to="/colored_cloud"/>
         <remap from="/cloud/colored/semantic" to="/cloud/colored/semantic"/>
         <remap from="/darknet_ros/bounding_boxes" to="/darknet_ros/bounding_boxes"/>
+        <remap from="/projection/semantic" to="/projection/semantic"/>
+        <remap from="/bounding_boxes" to="/bounding_boxes"/>
         <param name="LEAF_SIZE" value="0.05"/>
         <param name="TOLERANCE" value="0.3"/>
         <param name="MIN_CLUSTER_SIZE" value="2"/>

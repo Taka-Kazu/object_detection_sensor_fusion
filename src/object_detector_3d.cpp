@@ -50,6 +50,7 @@ public:
     void get_color_bb(std::string, int&, int&, int&);
     double get_color_ratio(int, int, int);
     void coloring_pointcloud(typename pcl::PointCloud<t_p>::Ptr&, int, int, int);
+    void get_closest_point(typename pcl::PointCloud<t_p>::Ptr&, t_p&);
 
 private:
     static constexpr double MAX_DISTANCE = 20.0;
@@ -74,6 +75,7 @@ private:
     ros::Publisher pc_pub;
     ros::Publisher semantic_cloud_pub;
     ros::Publisher projection_semantic_image_pub;
+    ros::Publisher bb_pub;
 
     tf::TransformListener listener;
     tf::StampedTransform transform;
@@ -96,6 +98,7 @@ ObjectDetector3D<t_p>::ObjectDetector3D(void)
     pc_pub = nh.advertise<sensor_msgs::PointCloud2>("/colored_cloud", 1);
     semantic_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/cloud/colored/semantic", 1);
     projection_semantic_image_pub = nh.advertise<sensor_msgs::Image>("/projection/semantic", 1);
+    bb_pub = nh.advertise<visualization_msgs::MarkerArray>("/bounding_boxes_3d", 1);
     sensor_fusion_sync.registerCallback(boost::bind(&ObjectDetector3D::callback, this, _1, _2, _3, _4));
 
     private_nh.param("LEAF_SIZE", LEAF_SIZE, 0.05);
@@ -211,7 +214,8 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
         coloring_pointcloud(bb_clouds[i], r, g, b);
         typename pcl::PointCloud<t_p>::Ptr cluster(new pcl::PointCloud<t_p>);
         get_euclidean_cluster(bb_clouds[i], *cluster);
-        *semantic_cloud += *cluster;
+        pcl::copyPointCloud(*cluster, *bb_clouds[i]);
+        *semantic_cloud += *bb_clouds[i];
     }
 
     typename pcl::PointCloud<t_p>::Ptr output_sc(new pcl::PointCloud<t_p>);
@@ -221,22 +225,6 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     pcl::toROSMsg(*output_sc, output_semantic_cloud);
     output_semantic_cloud.header = pc.header;
     semantic_cloud_pub.publish(output_semantic_cloud);
-
-    // colored cloud
-    typename pcl::PointCloud<t_p>::Ptr output_cloud(new pcl::PointCloud<t_p>);
-    pcl_ros::transformPointCloud(*colored_cloud, *output_cloud, transform.inverse());
-    sensor_msgs::PointCloud2 output_pc;
-    pcl::toROSMsg(*output_cloud, output_pc);
-    output_pc.header.frame_id = pc.header.frame_id;
-    output_pc.header.stamp = ros::Time::now();
-    pc_pub.publish(output_pc);
-
-    // projection/depth image
-    sensor_msgs::ImagePtr output_image;
-    output_image = cv_bridge::CvImage(std_msgs::Header(), "bgr8", projection_image).toImageMsg();
-    output_image->header.frame_id = image.header.frame_id;
-    output_image->header.stamp = ros::Time::now();
-    image_pub.publish(output_image);
 
     // projection/semantic image
     cv::Mat projection_semantic_image;
@@ -258,6 +246,65 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
     output_psi->header.frame_id = image.header.frame_id;
     output_psi->header.stamp = ros::Time::now();
     projection_semantic_image_pub.publish(output_psi);
+
+    //std::cout << "=== bb ===" << std::endl;
+    // generate bounding box
+    visualization_msgs::MarkerArray bbs_3d;
+    for(int i=0;i<n_bbs;i++){
+        if(bb_clouds[i]->points.size() > 0){
+            //std::cout << "label: " << bbs.bounding_boxes[i].Class << std::endl;
+            bounding_box_lib::BoundingBox bb;
+            cv::Point2d uv[4];
+            cv::Point3d corner_vec[4];
+            double vector_ratio[4];
+            long int x_limit[2] = {bbs.bounding_boxes[i].xmin, bbs.bounding_boxes[i].xmax};
+            long int y_limit[2] = {bbs.bounding_boxes[i].ymin, bbs.bounding_boxes[i].ymax};
+            t_p closest_point;
+            get_closest_point(bb_clouds[i], closest_point);
+            for(int j=0;j<4;j++){
+                uv[j].x = x_limit[(j<2) ? 0 : 1];
+                uv[j].y = y_limit[(j%2==0) ? 0 : 1];
+                corner_vec[j] = cam_model.projectPixelTo3dRay(uv[j]);
+                vector_ratio[j] = closest_point.z / corner_vec[j].z;
+                corner_vec[j].x *= vector_ratio[j];
+                corner_vec[j].y *= vector_ratio[j];
+                corner_vec[j].z *= vector_ratio[j];
+                //std::cout << corner_vec[j] << std::endl;
+            }
+            double width = corner_vec[2].x - corner_vec[0].x;
+            double height = corner_vec[1].y - corner_vec[0].y;
+            double depth = width;
+            bb.set_id(i);
+            bb.set_frame_id(image.header.frame_id);
+            bb.set_orientation(0, 0, 0);
+            bb.set_scale(width, height, depth);
+            int r, g, b;
+            get_color_bb(bbs.bounding_boxes[i].Class, r, g, b);
+            bb.set_rgb(r, g, b);
+            bb.set_centroid(corner_vec[0].x + width * 0.5, corner_vec[0].y + height * 0.5, corner_vec[0].z + depth * 0.5);
+            //std::cout << width << ", " << height << ", " << depth << std::endl;
+            //std::cout << corner_vec[0].x + width * 0.5 << ", " << corner_vec[0].y + height * 0.5 << ", " << corner_vec[0].z + depth * 0.5 << std::endl;
+            bb.calculate_vertices();
+            bbs_3d.markers.push_back(bb.get_bounding_box());
+        }
+    }
+    bb_pub.publish(bbs_3d);
+
+    // colored cloud
+    typename pcl::PointCloud<t_p>::Ptr output_cloud(new pcl::PointCloud<t_p>);
+    pcl_ros::transformPointCloud(*colored_cloud, *output_cloud, transform.inverse());
+    sensor_msgs::PointCloud2 output_pc;
+    pcl::toROSMsg(*output_cloud, output_pc);
+    output_pc.header.frame_id = pc.header.frame_id;
+    output_pc.header.stamp = ros::Time::now();
+    pc_pub.publish(output_pc);
+
+    // projection/depth image
+    sensor_msgs::ImagePtr output_image;
+    output_image = cv_bridge::CvImage(std_msgs::Header(), "bgr8", projection_image).toImageMsg();
+    output_image->header.frame_id = image.header.frame_id;
+    output_image->header.stamp = ros::Time::now();
+    image_pub.publish(output_image);
 
     // edge detection
     cv::Mat edge_image;
@@ -430,5 +477,19 @@ void ObjectDetector3D<t_p>::coloring_pointcloud(typename pcl::PointCloud<t_p>::P
         pt.r = r;
         pt.g = g;
         pt.b = b;
+    }
+}
+
+template<typename t_p>
+void ObjectDetector3D<t_p>::get_closest_point(typename pcl::PointCloud<t_p>::Ptr& cluster, t_p& closest_point)
+{
+    // camera optical frame
+    double min_dist = 100;
+    for(auto pt : cluster->points){
+        double distance = sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
+        if(min_dist >= distance){
+            min_dist = distance;
+            closest_point = pt;
+        }
     }
 }

@@ -211,7 +211,6 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
         coloring_pointcloud(*(bb_clouds[i]), r, g, b);
         typename pcl::PointCloud<t_p>::Ptr cluster(new pcl::PointCloud<t_p>);
         get_euclidean_cluster(*(bb_clouds[i]), *cluster);
-        //*cluster = *(bb_clouds[i]);
         *semantic_cloud += *cluster;
     }
 
@@ -313,7 +312,7 @@ void ObjectDetector3D<t_p>::get_color(double d, int &r, int &g, int &b)
 template<typename t_p>
 void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl::PointCloud<t_p>& output_pc)
 {
-    std::cout << "original points size: " << pc.points.size() << std::endl;
+    //std::cout << "original points size: " << pc.points.size() << std::endl;
     if(pc.points.empty()){
         return;
     }
@@ -376,7 +375,7 @@ void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl:
             cluster->points.push_back(cloud_filtered->points.at(it));
         }
         int cluster_size = cluster->points.size();
-        std::cout << "cluster" << index << " size: " << cluster_size << std::endl;
+        //std::cout << "cluster" << index << " size: " << cluster_size << std::endl;
         if(cluster_size > max_cluster_size){
             max_cluster_index = index;
             max_cluster_size = cluster_size;

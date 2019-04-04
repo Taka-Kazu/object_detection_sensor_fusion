@@ -211,6 +211,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
         coloring_pointcloud(*(bb_clouds[i]), r, g, b);
         typename pcl::PointCloud<t_p>::Ptr cluster(new pcl::PointCloud<t_p>);
         get_euclidean_cluster(*(bb_clouds[i]), *cluster);
+        //*cluster = *(bb_clouds[i]);
         *semantic_cloud += *cluster;
     }
 
@@ -312,10 +313,18 @@ void ObjectDetector3D<t_p>::get_color(double d, int &r, int &g, int &b)
 template<typename t_p>
 void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl::PointCloud<t_p>& output_pc)
 {
+    std::cout << "original points size: " << pc.points.size() << std::endl;
     if(pc.points.empty()){
         return;
     }
-    typename pcl::PointCloud<t_p>::Ptr cloud_filtered(new pcl::PointCloud<t_p>);
+
+    // all input points have same color and intensity
+    int r, g, b;
+    r = pc.points.begin()->r;
+    g = pc.points.begin()->g;
+    b = pc.points.begin()->b;
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::copyPointCloud(pc, *cloud_filtered);
 
     /*
@@ -335,11 +344,11 @@ void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl:
     }
     */
 
-    typename pcl::search::KdTree<t_p>::Ptr tree(new pcl::search::KdTree<t_p>);
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
     tree->setInputCloud(cloud_filtered);
 
     std::vector<pcl::PointIndices> cluster_indices;
-    typename pcl::EuclideanClusterExtraction<t_p> ec;
+    pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
     ec.setClusterTolerance(TOLERANCE);
     ec.setMinClusterSize(MIN_CLUSTER_SIZE);
     ec.setMaxClusterSize(MAX_CLUSTER_SIZE);
@@ -357,24 +366,32 @@ void ObjectDetector3D<t_p>::get_euclidean_cluster(pcl::PointCloud<t_p>& pc, pcl:
         std::cout << "!!! clustering error !!!" << std::endl;
         //return;
     }
-
+    pcl::PointCloud<pcl::PointXYZ>::Ptr _output_pc(new pcl::PointCloud<pcl::PointXYZ>);
     int max_cluster_size = 0;
     int max_cluster_index = -1;
     int index = 0;
     for(auto indices : cluster_indices){
-        typename pcl::PointCloud<t_p>::Ptr cluster(new pcl::PointCloud<t_p>);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZ>);
         for(auto it : indices.indices){
             cluster->points.push_back(cloud_filtered->points.at(it));
         }
         int cluster_size = cluster->points.size();
+        std::cout << "cluster" << index << " size: " << cluster_size << std::endl;
         if(cluster_size > max_cluster_size){
             max_cluster_index = index;
             max_cluster_size = cluster_size;
-            output_pc = *cluster;
+            *_output_pc = *cluster;
         }
         index++;
     }
-    std::cout << "cluster size: " << output_pc.points.size() << std::endl;
+    pcl::copyPointCloud(*_output_pc, output_pc);
+    for(auto& pt : output_pc.points){
+        pt.r = r;
+        pt.g = g;
+        pt.b = b;
+    }
+
+    std::cout << "final cluster size: " << output_pc.points.size() << std::endl;
 }
 
 template<typename t_p>

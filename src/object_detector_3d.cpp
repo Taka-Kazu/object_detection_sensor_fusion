@@ -51,7 +51,7 @@ public:
 	double get_color_ratio(int, int, int);
 	void coloring_pointcloud(typename pcl::PointCloud<t_p>::Ptr&, int, int, int);
 	void get_closest_point(typename pcl::PointCloud<t_p>::Ptr&, t_p&);
-	void principal_component_analiysys(typename pcl::PointCloud<t_p>::Ptr&, double&);
+	void principal_component_analysis(typename pcl::PointCloud<t_p>::Ptr&, double&);
 
 private:
 	static constexpr double MAX_DISTANCE = 20.0;
@@ -280,7 +280,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
 
 			std::cout << bbs.bounding_boxes[i].Class << std::endl; 
 			double yaw;
-			principal_component_analiysys(bb_clouds[i], yaw);
+			principal_component_analysis(bb_clouds[i], yaw);
 
 			bb.set_orientation(0, -yaw, 0);
 			bb.set_scale(width, height, depth);
@@ -501,7 +501,7 @@ void ObjectDetector3D<t_p>::get_closest_point(typename pcl::PointCloud<t_p>::Ptr
 }
 
 template<typename t_p>
-void ObjectDetector3D<t_p>::principal_component_analiysys(typename pcl::PointCloud<t_p>::Ptr& cluster, double& yaw)
+void ObjectDetector3D<t_p>::principal_component_analysis(typename pcl::PointCloud<t_p>::Ptr& cluster, double& yaw)
 {
 	// camera optical frame
 	double cluster_size = cluster->points.size();

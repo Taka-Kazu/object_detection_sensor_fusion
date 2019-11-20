@@ -230,5 +230,4 @@ target_link_libraries(object_detector_3d
     ${catkin_LIBRARIES}
     ${PCL_LIBRARIES}
     ${OpenCV_LIBRARIES}
-    bounding_box_lib
 )

@@ -155,15 +155,14 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
 	cv::Mat cv_image(cv_img_ptr->image.rows, cv_img_ptr->image.cols, cv_img_ptr->image.type());
 	cv_image = cv_bridge::toCvCopy(image, sensor_msgs::image_encodings::BGR8)->image;
 
-	cv::Mat rgb_image;
-	cv::cvtColor(cv_image, rgb_image, CV_BGR2RGB);
+	cv::Mat bgr_image = cv_image.clone();
 
 	image_geometry::PinholeCameraModel cam_model;
 	cam_model.fromCameraInfo(camera_info);
 
 	typename pcl::PointCloud<t_p>::Ptr colored_cloud(new pcl::PointCloud<t_p>);
 	*colored_cloud = *trans_cloud;
-	cv::Mat projection_image = rgb_image.clone();
+	cv::Mat projection_image = bgr_image.clone();
 
 	int n_bbs = bbs.bounding_boxes.size();
 	std::vector<typename pcl::PointCloud<t_p>::Ptr> bb_clouds;
@@ -183,10 +182,10 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
 			cv::Point2d uv;
 			uv = cam_model.project3dToPixel(pt_cv);
 
-			if(uv.x > 0 && uv. x < rgb_image.cols && uv.y > 0 && uv.y < rgb_image.rows){
-				pt.b = rgb_image.at<cv::Vec3b>(uv)[0];
-				pt.g = rgb_image.at<cv::Vec3b>(uv)[1];
-				pt.r = rgb_image.at<cv::Vec3b>(uv)[2];
+			if(uv.x > 0 && uv. x < bgr_image.cols && uv.y > 0 && uv.y < bgr_image.rows){
+				pt.b = bgr_image.at<cv::Vec3b>(uv)[0];
+				pt.g = bgr_image.at<cv::Vec3b>(uv)[1];
+				pt.r = bgr_image.at<cv::Vec3b>(uv)[2];
 
 				double distance = sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
 				int r, g, b;
@@ -278,7 +277,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
 			bb.set_id(i);
 			bb.set_frame_id(image.header.frame_id);
 
-			std::cout << bbs.bounding_boxes[i].Class << std::endl; 
+			std::cout << bbs.bounding_boxes[i].Class << std::endl;
 			double yaw;
 			principal_component_analysis(bb_clouds[i], yaw);
 
@@ -314,7 +313,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
 
 	// edge detection
 	cv::Mat edge_image;
-	cv::cvtColor(rgb_image, edge_image, CV_RGB2GRAY);
+	cv::cvtColor(bgr_image, edge_image, CV_RGB2GRAY);
 	cv::GaussianBlur(edge_image, edge_image, cv::Size(5, 5), 0);
 	cv::Canny(edge_image, edge_image, 100, 200, 3);
 	/*
@@ -322,7 +321,7 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
 	cv::HoughLinesP(edge_image, lines, 1, M_PI / 180, 20, 2, 10);
 	for(int i=0;i<lines.size();i++){
 		cv::Vec4i l = lines[i];
-		cv::line(rgb_image, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0, 255, 0), 3, CV_AA);
+		cv::line(bgr_image, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), cv::Scalar(0, 255, 0), 3, CV_AA);
 	}
 	*/
 	cv::namedWindow("edge");
@@ -529,7 +528,7 @@ void ObjectDetector3D<t_p>::principal_component_analysis(typename pcl::PointClou
 	sigma_yy /= cluster_size;
 	Eigen::Matrix2d cov_mat;
 	cov_mat << sigma_xx, sigma_xy,
-			   sigma_xy, sigma_yy; 
+			   sigma_xy, sigma_yy;
 	Eigen::EigenSolver<Eigen::Matrix2d> es(cov_mat);
 	Eigen::Vector2d eigen_values = es.eigenvalues().real();
 	Eigen::Matrix2d eigen_vectors = es.eigenvectors().real();

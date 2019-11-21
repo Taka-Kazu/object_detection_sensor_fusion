@@ -293,7 +293,16 @@ void ObjectDetector3D<t_p>::sensor_fusion(const sensor_msgs::Image& image, const
             bbs_3d.markers.push_back(bb.get_bounding_box());
         }
     }
+    static int last_n_bbs = 0;
+    for(int i=n_bbs;i<last_n_bbs;i++){
+        visualization_msgs::Marker m;
+        m.action = visualization_msgs::Marker::DELETE;
+        m.id = i;
+        m.pose.orientation = tf::createQuaternionMsgFromYaw(0);
+        bbs_3d.markers.push_back(m);
+    }
     bb_pub.publish(bbs_3d);
+    last_n_bbs = n_bbs;
 
     // colored cloud
     typename pcl::PointCloud<t_p>::Ptr output_cloud(new pcl::PointCloud<t_p>);
